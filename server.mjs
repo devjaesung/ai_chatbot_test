@@ -12,7 +12,7 @@ if (!API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
@@ -56,14 +56,31 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // static index.html
-  if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    return res.end(
-      await import("node:fs/promises").then((fs) =>
-        fs.readFile("./public/index.html", "utf8")
-      )
-    );
+  // static files
+  if (req.method === "GET") {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+
+    // Default to index.html for root path
+    const filePath = req.url === "/" ? "/index.html" : req.url;
+    const fullPath = path.join("./public", filePath);
+
+    try {
+      const content = await fs.readFile(fullPath, "utf8");
+      const ext = path.extname(filePath);
+      const contentType =
+        {
+          ".html": "text/html",
+          ".css": "text/css",
+          ".js": "text/javascript",
+        }[ext] || "text/plain";
+
+      res.writeHead(200, { "Content-Type": `${contentType}; charset=utf-8` });
+      return res.end(content);
+    } catch (error) {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("Not Found");
+    }
   }
 
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
