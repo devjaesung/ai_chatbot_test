@@ -13,6 +13,8 @@ const closeSignup = $("#close-signup");
 const loginForm = $("#login-form");
 const signupForm = $("#signup-form");
 
+let currentSource = null; // 🔹 현재 열려있는 EventSource (중복 방지)
+
 function openModal(modal) {
   modal.classList.add("show");
   modal.setAttribute("aria-hidden", "false");
@@ -27,33 +29,64 @@ function appendMsg(text, who = "bot") {
   div.textContent = text;
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
+  return div;
 }
 
-async function sendMessage() {
+function sendMessageStream() {
   const text = userInput.value.trim();
   if (!text) return;
+
+  // 기존 스트림이 열려 있으면 종료 (중복 연결 방지)
+  if (currentSource) {
+    try {
+      currentSource.close();
+    } catch {}
+    currentSource = null;
+  }
+
+  // 사용자 메시지 추가
   appendMsg(text, "user");
   userInput.value = "";
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: text }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || "요청 실패");
-    appendMsg(data.output ?? "(빈 응답)", "bot");
-  } catch (err) {
-    appendMsg(`에러: ${err.message}`, "bot");
-  }
+
+  // 봇 메시지 노드 준비
+  const botNode = appendMsg("", "bot");
+
+  // SSE 연결
+  const url = `/chat/stream?prompt=${encodeURIComponent(text)}`;
+  const source = new EventSource(url);
+  currentSource = source;
+
+  source.onmessage = (e) => {
+    // 한 글자씩 누적
+    botNode.textContent += e.data;
+    chatBox.scrollTop = chatBox.scrollHeight;
+  };
+
+  source.addEventListener("done", () => {
+    source.close();
+    currentSource = null;
+  });
+
+  source.addEventListener("error", (e) => {
+    appendMsg("스트리밍 중 에러가 발생했습니다. 다시 시도해 주세요.", "bot");
+    try {
+      source.close();
+    } catch {}
+    currentSource = null;
+  });
 }
 
-// 이벤트 바인딩
-sendBtn.addEventListener("click", sendMessage);
+// 전송 버튼을 스트리밍으로 연결
+// (이전에 sendMessage를 쓰던 코드가 있었다면, 타입 체크로 안전 제거)
+if (typeof sendMessage === "function") {
+  sendBtn.removeEventListener("click", sendMessage);
+}
+sendBtn.addEventListener("click", sendMessageStream);
+
 userInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
-    sendMessage();
+    sendMessageStream();
   }
 });
 
