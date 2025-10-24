@@ -83,7 +83,7 @@ if (typeof sendMessage === "function") {
 }
 sendBtn.addEventListener("click", sendMessageStream);
 
-userInput.addEventListener("keydown", (e) => {
+userInput.addEventListener("keyup", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     sendMessageStream();
@@ -101,7 +101,7 @@ loginModal.addEventListener("click", (e) => {
 signupModal.addEventListener("click", (e) => {
   if (e.target === signupModal) closeModal(signupModal);
 });
-document.addEventListener("keydown", (e) => {
+document.addEventListener("keyup", (e) => {
   if (e.key === "Escape") {
     closeModal(loginModal);
     closeModal(signupModal);
